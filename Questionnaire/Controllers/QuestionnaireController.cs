@@ -25,42 +25,60 @@ namespace Questionnaire.Controllers
         // GET api/[controller]/polls
         [HttpGet]
         [Route("polls")]
-        public async Task<ActionResult<IEnumerable<Poll>>> GetPolls()
+        [ProducesResponseType(typeof(IEnumerable<Poll>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        public async Task<IActionResult> PollsAsync()
         {
-            return await _questionnaireContext.Polls
-                    .Include(p => p.Sections)
-                    .ToListAsync();
+            var polls = await _questionnaireContext.Polls
+                .Include(p => p.Sections)
+                    .ThenInclude(s => s.Questions)
+                .ToListAsync();
+            return Ok(polls);
         }
 
-        // GET: api/[controller]/polls/1
-        [HttpGet("polls/{id:int}")]
-        [Route("polls")]
-        public async Task<ActionResult<Poll>> GetPoll(int id)
+        // GET api/[controller]/polls/2
+        [HttpGet]
+        [Route("polls/{id:int}")]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType(typeof(Poll), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<Poll>> PollByIdAsync(int id)
         {
             if (id <= 0)
             {
                 return BadRequest();
             }
 
-            var poll = await _questionnaireContext.Polls.FindAsync(id);
+            var poll = await _questionnaireContext.Polls
+                .Include(p => p.Sections)
+                    .ThenInclude(s => s.Questions)
+                .SingleOrDefaultAsync(p => p.Id == id);
 
-            if (poll == null)
+            if (poll != null)
             {
-                return NotFound();
+                return poll;
             }
 
-            return poll;
+            return NotFound();
         }
 
-        // POST: api/Questionnaire
-        [HttpPost]
+        //POST api/[controller]/polls
         [Route("polls")]
-        public async Task<ActionResult<Poll>> PostPoll(Poll poll)
+        [HttpPost]
+        [ProducesResponseType(typeof(Poll), (int)HttpStatusCode.Created)]
+        public async Task<ActionResult> CreatePollAsync([FromBody]Poll poll)
         {
-            _questionnaireContext.Polls.Add(poll);
+            var pollToAdd = new Poll
+            {
+                Name = poll.Name,
+                Sections = poll.Sections
+            };
+
+            _questionnaireContext.Polls.Add(pollToAdd);
+
             await _questionnaireContext.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetPoll), new { id = poll.Id }, poll);
+            return CreatedAtAction(nameof(PollByIdAsync), new { id = poll.Id }, null);
         }
     }
 }
