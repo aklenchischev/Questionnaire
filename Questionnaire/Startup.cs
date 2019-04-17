@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Questionnaire.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace Questionnaire
 {
@@ -31,7 +33,7 @@ namespace Questionnaire
                 options.MinimumSameSitePolicy = SameSiteMode.None;
             });
 
-
+            services.AddDbContext<QuestionnaireContext>(opts => opts.UseSqlServer(Configuration["connectionString:QuestionnaireDB"]));
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
 
