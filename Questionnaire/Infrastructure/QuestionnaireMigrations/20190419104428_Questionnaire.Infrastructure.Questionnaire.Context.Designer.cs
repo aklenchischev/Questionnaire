@@ -10,7 +10,7 @@ using Questionnaire.Infrastructure;
 namespace Questionnaire.Infrastructure.QuestionnaireMigrations
 {
     [DbContext(typeof(QuestionnaireContext))]
-    [Migration("20190417134117_Questionnaire.Infrastructure.QuestionnaireContext")]
+    [Migration("20190419104428_Questionnaire.Infrastructure.Questionnaire.Context")]
     partial class QuestionnaireInfrastructureQuestionnaireContext
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
