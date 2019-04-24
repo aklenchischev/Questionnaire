@@ -3,15 +3,17 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Questionnaire.Infrastructure;
 
 namespace Questionnaire.Infrastructure.QuestionnaireMigrations
 {
     [DbContext(typeof(QuestionnaireContext))]
-    partial class QuestionnaireContextModelSnapshot : ModelSnapshot
+    [Migration("20190423160922_AddNotAnsweredQuestionsCount")]
+    partial class AddNotAnsweredQuestionsCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,10 +30,6 @@ namespace Questionnaire.Infrastructure.QuestionnaireMigrations
                     b.Property<string>("Name");
 
                     b.Property<int>("NotAnsweredQuestionsCount");
-
-                    b.Property<byte[]>("Timestamp")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate();
 
                     b.HasKey("Id");
 

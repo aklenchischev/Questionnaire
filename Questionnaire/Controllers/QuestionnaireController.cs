@@ -68,22 +68,23 @@ namespace Questionnaire.Controllers
         [ProducesResponseType(typeof(Poll), (int)HttpStatusCode.Created)]
         public async Task<ActionResult> CreatePollAsync([FromBody]Poll poll)
         {
+            int questionsCount = 0;
+            foreach (Section section in poll.Sections)
+            {
+                if (section.Questions != null)
+                    questionsCount += section.Questions.Count;
+            }
+
             var pollToAdd = new Poll
             {
                 Name = poll.Name,
-                Sections = poll.Sections
+                Sections = poll.Sections,
+                NotAnsweredQuestionsCount = questionsCount
             };
 
             _questionnaireContext.Polls.Add(pollToAdd);
 
-            try
-            {
                 await _questionnaireContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-            }
 
             return CreatedAtAction(nameof(PollByIdAsync), new { id = pollToAdd.Id }, null);
         }
@@ -93,24 +94,66 @@ namespace Questionnaire.Controllers
         [HttpPut]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
         [ProducesResponseType((int)HttpStatusCode.Created)]
-        public async Task<ActionResult> UpdateQuestionAsync([FromBody]Question questionToUpdate)
+        public async Task<ActionResult> UpdateAnswerForQuestionAsync([FromBody]Question questionToUpdate)
         {
-            var question = await _questionnaireContext.Questions.SingleOrDefaultAsync(q => q.Id == questionToUpdate.Id);
+            if (questionToUpdate.Answer == null)
+            {
+                return NotFound(new { Message = $"Expected an answer to the question with id {questionToUpdate.Id}." });
+            }
 
+            var question = await _questionnaireContext.Questions.SingleOrDefaultAsync(q => q.Id == questionToUpdate.Id);
             if (question == null)
             {
-                return NotFound(new { Message = $"Question with id {questionToUpdate.Id} not found." });
+                return NotFound(new { Message = $"The question with id {questionToUpdate.Id} not found." });
             }
 
-            question.Answer = questionToUpdate.Answer;
-            question.QuestionBody = questionToUpdate.QuestionBody;
-            try { 
-                _questionnaireContext.Questions.Update(question);
-                await _questionnaireContext.SaveChangesAsync();
-            } catch (Exception e)
+            var section = await _questionnaireContext.Sections.SingleOrDefaultAsync(s => s.Questions.Contains(questionToUpdate));
+            if (section == null)
             {
-                Console.WriteLine(e.Message);
+                return NotFound(new { Message = $"Section that contains the question with id {questionToUpdate.Id} not found." });
             }
+
+            var poll = await _questionnaireContext.Polls.SingleOrDefaultAsync(p => p.Sections.Contains(section));
+            if (poll == null)
+            {
+                return NotFound(new { Message = $"Poll that contains the question with id {questionToUpdate.Id} not found." });
+            }
+
+            if (question.Answer != "")
+                poll.NotAnsweredQuestionsCount--;
+
+            _questionnaireContext.Polls.Update(poll);
+
+            question.Answer = questionToUpdate.Answer;
+            _questionnaireContext.Questions.Update(question);
+            
+            var saved = false;
+
+            while (!saved)
+            {
+                try
+                {
+                    await _questionnaireContext.SaveChangesAsync();
+                    saved = true;
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    var exceptionEntry = ex.Entries.Single();
+
+                    var clientEntry = exceptionEntry.CurrentValues;
+                    var clientValues = (Poll)clientEntry.ToObject();
+
+                    var databaseEntry = exceptionEntry.GetDatabaseValues();
+                    var databaseValues = (Poll)databaseEntry.ToObject();
+
+                    clientValues.NotAnsweredQuestionsCount = databaseValues.NotAnsweredQuestionsCount - 1;
+
+                    clientEntry.SetValues(clientValues);
+
+                    exceptionEntry.OriginalValues.SetValues(databaseEntry);
+                }
+            }
+
             return CreatedAtAction(nameof(QuestionByIdAsync), new { id = questionToUpdate.Id }, null);
         }
 
