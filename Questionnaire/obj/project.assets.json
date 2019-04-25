@@ -12940,9 +12940,9 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Andrey Klenchischev\\source\\repos\\Questionnaire\\Questionnaire\\Questionnaire.csproj",
-      "projectName": "Questionnaire",
-      "projectPath": "C:\\Users\\Andrey Klenchischev\\source\\repos\\Questionnaire\\Questionnaire\\Questionnaire.csproj",
+      "projectUniqueName": "C:\\Users\\Andrey Klenchischev\\source\\repos\\Questionnaire\\Questionnaire\\Questionnaire.API.csproj",
+      "projectName": "Questionnaire.API",
+      "projectPath": "C:\\Users\\Andrey Klenchischev\\source\\repos\\Questionnaire\\Questionnaire\\Questionnaire.API.csproj",
       "packagesPath": "C:\\Users\\Andrey Klenchischev\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\Andrey Klenchischev\\source\\repos\\Questionnaire\\Questionnaire\\obj\\",
       "projectStyle": "PackageReference",
