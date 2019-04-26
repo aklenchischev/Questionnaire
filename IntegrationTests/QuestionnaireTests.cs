@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Questionnaire;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 
 namespace IntegrationTests
 {
@@ -13,6 +14,8 @@ namespace IntegrationTests
 
         public static string Questions = "https://localhost:44359/api/Questionnaire/questions";
         public static string Polls = "https://localhost:44359/api/Questionnaire/polls";
+
+        private static EventWaitHandle ewh;
 
         public QuestionnaireTests(WebApplicationFactory<Startup> factory)
         {
