@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Questionnaire;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
+using Questionnaire.Models;
+using Newtonsoft.Json;
 
 namespace IntegrationTests
 {
@@ -14,8 +15,6 @@ namespace IntegrationTests
 
         public static string Questions = "https://localhost:44359/api/Questionnaire/questions";
         public static string Polls = "https://localhost:44359/api/Questionnaire/polls";
-
-        private static EventWaitHandle ewh;
 
         public QuestionnaireTests(WebApplicationFactory<Startup> factory)
         {
@@ -42,10 +41,16 @@ namespace IntegrationTests
         {
             var client = _factory.CreateClient();
 
-            var jsonString = "{\"id\":13,\"answer\":\"AnswerWithCount3\"}";
+            Question question = new Question
+            {
+                Id = 13,
+                Answer = "AnswerWithCount3"
+            };
+
+            var json = JsonConvert.SerializeObject(question);
 
             var response = await client.PutAsync(Questions, 
-                new StringContent(jsonString, Encoding.UTF8, "application/json"));
+                new StringContent(json, Encoding.UTF8, "application/json"));
 
             response.EnsureSuccessStatusCode();
         }
