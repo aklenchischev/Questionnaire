@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Questionnaire.Infrastructure;
 using Questionnaire.Models;
-using System.Threading;
+using System.Collections.Concurrent;
 
 
 namespace Questionnaire.Controllers
@@ -18,9 +18,7 @@ namespace Questionnaire.Controllers
     {
         private readonly QuestionnaireContext _questionnaireContext;
 
-        private readonly object pollLock = new object();
-
-        private Dictionary<int, PollLocker> pollLockers = new Dictionary<int, PollLocker>();
+        private ConcurrentDictionary<int, object> questionLockers = new ConcurrentDictionary<int, object>();
 
         public QuestionnaireController(QuestionnaireContext context)
         {
@@ -38,6 +36,7 @@ namespace Questionnaire.Controllers
                 .Include(p => p.Sections)
                     .ThenInclude(s => s.Questions)
                 .ToListAsync();
+
             return Ok(polls);
         }
 
@@ -94,7 +93,6 @@ namespace Questionnaire.Controllers
             return CreatedAtAction(nameof(PollByIdAsync), new { id = pollToAdd.Id }, null);
         }
 
-        /*
         // PUT api/[controller]/questions
         [Route("questions")]
         [HttpPut]
@@ -107,122 +105,27 @@ namespace Questionnaire.Controllers
                 return NotFound(new { Message = $"Expected an answer to the question with id {questionToUpdate.Id}." });
             }
 
-            var question = await _questionnaireContext.Questions.SingleOrDefaultAsync(q => q.Id == questionToUpdate.Id);
+            var question = await _questionnaireContext.Questions
+                .Include(q => q.Section)
+                    .ThenInclude(s => s.Poll)
+                .FirstOrDefaultAsync(q => q.Id == questionToUpdate.Id);
+
             if (question == null)
             {
                 return NotFound(new { Message = $"The question with id {questionToUpdate.Id} not found." });
             }
 
-            var section = await _questionnaireContext.Sections.SingleOrDefaultAsync(s => s.Questions.Contains(questionToUpdate));
-            if (section == null)
+            lock (questionLockers.GetOrAdd(question.Section.Poll.Id, new object()))
             {
-                return NotFound(new { Message = $"Section that contains the question with id {questionToUpdate.Id} not found." });
-            }
+                if (question.Answer == null && questionToUpdate.Answer != null)
+                    question.Section.Poll.NotAnsweredQuestionsCount--;
+                question.Answer = questionToUpdate.Answer;
 
-            var poll = await _questionnaireContext.Polls.SingleOrDefaultAsync(p => p.Sections.Contains(section));
-            if (poll == null)
-            {
-                return NotFound(new { Message = $"Poll that contains the question with id {questionToUpdate.Id} not found." });
-            }
-
-            if (question.Answer != "")
-                poll.NotAnsweredQuestionsCount--;
-
-            _questionnaireContext.Polls.Update(poll);
-
-            question.Answer = questionToUpdate.Answer;
-            _questionnaireContext.Questions.Update(question);
-            
-            var saved = false;
-
-            while (!saved)
-            {
-                try
-                {
-                    await _questionnaireContext.SaveChangesAsync();
-                    saved = true;
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    var exceptionEntry = ex.Entries.Single();
-
-                    var clientEntry = exceptionEntry.CurrentValues;
-                    var clientValues = (Poll)clientEntry.ToObject();
-
-                    var databaseEntry = exceptionEntry.GetDatabaseValues();
-                    var databaseValues = (Poll)databaseEntry.ToObject();
-
-                    clientValues.NotAnsweredQuestionsCount = databaseValues.NotAnsweredQuestionsCount - 1;
-
-                    clientEntry.SetValues(clientValues);
-
-                    exceptionEntry.OriginalValues.SetValues(databaseEntry);
-                }
+                _questionnaireContext.SaveChanges();
             }
 
             return CreatedAtAction(nameof(QuestionByIdAsync), new { id = questionToUpdate.Id }, null);
         }
-        */
-
-        // PUT api/[controller]/questions
-        [Route("questions")]
-        [HttpPut]
-        [ProducesResponseType((int)HttpStatusCode.NotFound)]
-        [ProducesResponseType((int)HttpStatusCode.Created)]
-        public async Task<ActionResult> UpdateAnswerForQuestionAsync([FromBody]Question questionToUpdate)
-        {
-            if (questionToUpdate.Answer == null)
-            {
-                return NotFound(new { Message = $"Expected an answer to the question with id {questionToUpdate.Id}." });
-            }
-
-            var question = await _questionnaireContext.Questions.SingleOrDefaultAsync(q => q.Id == questionToUpdate.Id);
-            if (question == null)
-            {
-                return NotFound(new { Message = $"The question with id {questionToUpdate.Id} not found." });
-            }
-
-            var section = await _questionnaireContext.Sections.SingleOrDefaultAsync(s => s.Questions.Contains(questionToUpdate));
-            if (section == null)
-            {
-                return NotFound(new { Message = $"Section that contains the question with id {questionToUpdate.Id} not found." });
-            }
-
-            var poll = _questionnaireContext.Polls.SingleOrDefault(p => p.Sections.Contains(section));
-            if (poll == null)
-            {
-                return NotFound(new { Message = $"Poll that contains the question with id {questionToUpdate.Id} not found." });
-            }
-
-            if (!pollLockers.ContainsKey(poll.Id))
-            {
-                pollLockers.Add(poll.Id, new PollLocker());
-            }
-            else if (pollLockers[poll.Id].IsLocked == false)
-            {
-                pollLockers[poll.Id].IsLocked = true;
-            }
-            else
-            {
-                pollLockers[poll.Id].lockEvent.WaitOne();
-                poll = _questionnaireContext.Polls.SingleOrDefault(p => p.Id == poll.Id);
-            }
-
-            if (question.Answer != "")
-                poll.NotAnsweredQuestionsCount--;
-
-            _questionnaireContext.Polls.Update(poll);
-
-            question.Answer = questionToUpdate.Answer;
-            _questionnaireContext.Questions.Update(question);
-            _questionnaireContext.SaveChanges();
-
-            pollLockers[poll.Id].IsLocked = false;
-            pollLockers[poll.Id].lockEvent.Set();
-
-            return CreatedAtAction(nameof(QuestionByIdAsync), new { id = questionToUpdate.Id }, null);
-        }
-
 
         // GET api/[controller]/questions/2
         [HttpGet]
@@ -245,17 +148,6 @@ namespace Questionnaire.Controllers
             }
 
             return NotFound();
-        }
-
-        private class PollLocker
-        {
-            public PollLocker()
-            {
-                IsLocked = true;
-            }
-
-            public bool IsLocked { get; set; }
-            public EventWaitHandle lockEvent;
         }
     }
 }
