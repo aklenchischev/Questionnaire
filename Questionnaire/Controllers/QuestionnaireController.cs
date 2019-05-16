@@ -18,7 +18,7 @@ namespace Questionnaire.Controllers
     {
         private readonly QuestionnaireContext _questionnaireContext;
 
-        private ConcurrentDictionary<int, object> questionLockers = new ConcurrentDictionary<int, object>();
+        private ConcurrentDictionary<int, object> pollLockers = new ConcurrentDictionary<int, object>();
 
         public QuestionnaireController(QuestionnaireContext context)
         {
@@ -98,33 +98,38 @@ namespace Questionnaire.Controllers
         [HttpPut]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
         [ProducesResponseType((int)HttpStatusCode.Created)]
-        public async Task<ActionResult> UpdateAnswerForQuestionAsync([FromBody]Question questionToUpdate)
+        public async Task<ActionResult> UpdateAnswerForQuestionAsync([FromBody]Poll pollToUpdate)
         {
-            if (questionToUpdate.Answer == null)
+            if (pollToUpdate == null)
             {
-                return NotFound(new { Message = $"Expected an answer to the question with id {questionToUpdate.Id}." });
+                return NotFound(new { Message = $"Expected not null poll" });
             }
 
-            var question = await _questionnaireContext.Questions
-                .Include(q => q.Section)
-                    .ThenInclude(s => s.Poll)
-                .FirstOrDefaultAsync(q => q.Id == questionToUpdate.Id);
-
-            if (question == null)
+            lock (pollLockers.GetOrAdd(pollToUpdate.Id, new object()))
             {
-                return NotFound(new { Message = $"The question with id {questionToUpdate.Id} not found." });
-            }
+                var poll = _questionnaireContext.Polls
+                .Include(p => p.Sections)
+                    .ThenInclude(s => s.Questions)
+                .FirstOrDefault(p => p.Id == pollToUpdate.Id);
 
-            lock (questionLockers.GetOrAdd(question.Section.Poll.Id, new object()))
-            {
-                if (question.Answer == null && questionToUpdate.Answer != null)
-                    question.Section.Poll.NotAnsweredQuestionsCount--;
-                question.Answer = questionToUpdate.Answer;
+                foreach (Section section in pollToUpdate.Sections)
+                {
+                    foreach (Question question in section.Questions)
+                    {
+                        var sectionToUpdate = poll.Sections.Where(s => s.Id == section.Id).FirstOrDefault();
+                        var questionToUpdate = sectionToUpdate.Questions.Where(q => q.Id == question.Id).FirstOrDefault();
+
+                        if (questionToUpdate.Answer == null && question.Answer != null)
+                            poll.NotAnsweredQuestionsCount--;
+
+                        questionToUpdate.Answer = question.Answer;
+                    }
+                }
 
                 _questionnaireContext.SaveChanges();
             }
 
-            return CreatedAtAction(nameof(QuestionByIdAsync), new { id = questionToUpdate.Id }, null);
+            return CreatedAtAction(nameof(PollByIdAsync), new { id = pollToUpdate.Id }, null);
         }
 
         // GET api/[controller]/questions/2
