@@ -34,6 +34,7 @@ namespace Questionnaire.Controllers
                 .Include(p => p.Sections)
                     .ThenInclude(s => s.Questions)
                 .ToListAsync();
+
             return Ok(polls);
         }
 
@@ -104,41 +105,27 @@ namespace Questionnaire.Controllers
                 return NotFound(new { Message = $"Expected an answer to the question with id {questionToUpdate.Id}." });
             }
 
-            var question = await _questionnaireContext.Questions.SingleOrDefaultAsync(q => q.Id == questionToUpdate.Id);
+            var question = await _questionnaireContext.Questions
+                .Include(q => q.Section)
+                    .ThenInclude(s => s.Poll)
+                .FirstOrDefaultAsync(q => q.Id == questionToUpdate.Id);
+
             if (question == null)
             {
                 return NotFound(new { Message = $"The question with id {questionToUpdate.Id} not found." });
-            }
-            _questionnaireContext.Entry(question).Reload();
-
-            var section = await _questionnaireContext.Sections.SingleOrDefaultAsync(s => s.Questions.Contains(questionToUpdate));
-            if (section == null)
-            {
-                return NotFound(new { Message = $"Section that contains the question with id {questionToUpdate.Id} not found." });
-            }
-
-            var poll = await _questionnaireContext.Polls.SingleOrDefaultAsync(p => p.Sections.Contains(section));
-
-            if (poll == null)
-            {
-                return NotFound(new { Message = $"Poll that contains the question with id {questionToUpdate.Id} not found." });
             }
 
             while (!saved)
             {
                 try
                 {
-                    _questionnaireContext.Entry(question).Reload();
-
                     if (question.Answer == null && questionToUpdate.Answer != null)
-                        poll.NotAnsweredQuestionsCount--;
-
-                    _questionnaireContext.Polls.Update(poll);
-
+                        question.Section.Poll.NotAnsweredQuestionsCount--;
                     question.Answer = questionToUpdate.Answer;
-                    _questionnaireContext.Questions.Update(question);
 
+                    _questionnaireContext.Questions.Update(question);
                     await _questionnaireContext.SaveChangesAsync();
+
                     saved = true;
                 }
                 catch (DbUpdateConcurrencyException ex)
@@ -166,6 +153,8 @@ namespace Questionnaire.Controllers
                         }
                     }
                 }
+
+                _questionnaireContext.Entry(question).Reload();
             }
 
             return CreatedAtAction(nameof(QuestionByIdAsync), new { id = questionToUpdate.Id }, null);
