@@ -35,24 +35,5 @@ namespace IntegrationTests
             Assert.Equal("application/json; charset=utf-8",
                 response.Content.Headers.ContentType.ToString());
         }
-
-        [Fact]
-        public async Task PutQuestionHttpRequest()
-        {
-            var client = _factory.CreateClient();
-
-            Question question = new Question
-            {
-                Id = 13,
-                Answer = "AnswerWithCount3"
-            };
-
-            var json = JsonConvert.SerializeObject(question);
-
-            var response = await client.PutAsync(Questions, 
-                new StringContent(json, Encoding.UTF8, "application/json"));
-
-            response.EnsureSuccessStatusCode();
-        }
     }
 }

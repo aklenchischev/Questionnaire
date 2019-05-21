@@ -22,7 +22,7 @@ namespace Questionnaire.Controllers
         {
             _questionnaireContext = context ?? throw new ArgumentNullException(nameof(context));
         }
-
+        /*
         // GET api/[controller]/polls
         [HttpGet]
         [Route("polls")]
@@ -182,5 +182,6 @@ namespace Questionnaire.Controllers
 
             return NotFound();
         }
+        */
     }
 }
